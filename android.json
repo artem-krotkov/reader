@@ -5,15 +5,15 @@
  "native_hash": "ac4f8bdc7c12f71a23188d6e00d0284430e44c1ca903922e27dc8250c0337697",
  "url": "https://github.com/artem-krotkov/reader/releases/download/v0.1.2/reader-0.1.2.apk",
  "web": {
-  "code": 3,
-  "name": "0.1.3",
+  "code": 4,
+  "name": "0.1.4",
   "min_native": 2,
-  "notes": "Показ по предложениям, переключение свайпом вверх или вниз",
+  "notes": "В статистике появился график: сколько слов прочитано за каждый из последних 60 дней. После обновления приложение показывает, что нового.",
   "manifest": [
    {
     "file_name": "app.js",
-    "file_hash": "422048a7f296329134a1e60b646bb6052cd522a9005c44c0fb5692c02278f87f",
-    "download_url": "https://artem-krotkov.github.io/reader/app.js?h=422048a7f296"
+    "file_hash": "f9023635fc62a4334033b6b1a5cc1779b6ff9a257e45655de0fc4ab3643c721a",
+    "download_url": "https://artem-krotkov.github.io/reader/app.js?h=f9023635fc62"
    },
    {
     "file_name": "fonts/literata-cyrillic.woff2",
@@ -62,8 +62,8 @@
    },
    {
     "file_name": "index.html",
-    "file_hash": "8688cd8f064b3babd6349047de9724016488871a881ec657f706574a761aa484",
-    "download_url": "https://artem-krotkov.github.io/reader/index.html?h=8688cd8f064b"
+    "file_hash": "72d5ad89c58bf7a8df0e478b1c3a7a10d04db722a2b34c670efb6e4614c31221",
+    "download_url": "https://artem-krotkov.github.io/reader/index.html?h=72d5ad89c58b"
    },
    {
     "file_name": "lib/jszip.min.js",
@@ -92,18 +92,18 @@
    },
    {
     "file_name": "strings.js",
-    "file_hash": "e1ea852991d78026e9a7af53ea0718d37656839acdcd9f630c594d914b48aaf9",
-    "download_url": "https://artem-krotkov.github.io/reader/strings.js?h=e1ea852991d7"
+    "file_hash": "e5ef1d0f29427f837177e898b4a0271abec153be22d2e4f093ed0e2ffc0fef3b",
+    "download_url": "https://artem-krotkov.github.io/reader/strings.js?h=e5ef1d0f2942"
    },
    {
     "file_name": "style.css",
-    "file_hash": "d30676177a00d849d2d8b948eb3a3000feafe87324d4cb40f594f254e288cb41",
-    "download_url": "https://artem-krotkov.github.io/reader/style.css?h=d30676177a00"
+    "file_hash": "24604034df8083bb70ece8bf695374479a3a640269361d6b11073bbefffd246c",
+    "download_url": "https://artem-krotkov.github.io/reader/style.css?h=24604034df80"
    },
    {
     "file_name": "sw.js",
-    "file_hash": "116cb3695a5ce3355ab1965bf241377f6facf8196941f7eee84ada9844374a25",
-    "download_url": "https://artem-krotkov.github.io/reader/sw.js?h=116cb3695a5c"
+    "file_hash": "c77eb16c9f7dd37cb2cb1ec6857fe47b53434b47915871902d1d922313909346",
+    "download_url": "https://artem-krotkov.github.io/reader/sw.js?h=c77eb16c9f7d"
    },
    {
     "file_name": "telegram.js",
@@ -112,8 +112,8 @@
    },
    {
     "file_name": "version.js",
-    "file_hash": "a3c913a40a9ebd1c1cfa1f45374bbd7be0cb5c5793b44fa49738a5b54a93897b",
-    "download_url": "https://artem-krotkov.github.io/reader/version.js?h=a3c913a40a9e"
+    "file_hash": "513daa1971d4a391a75f679845dedb3a129087268bd86925f687ffb8080ac878",
+    "download_url": "https://artem-krotkov.github.io/reader/version.js?h=513daa1971d4"
    }
   ]
  }

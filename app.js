@@ -1056,6 +1056,7 @@ document.addEventListener('contextmenu', (e) => e.preventDefault());
 
 // на компьютере (для проверки): держать пробел, стрелки - предложения, +/- скорость
 document.addEventListener('keydown', (e) => {
+  if (!$('whatsnew').hidden) return; // окно "что нового" закрывается только кнопкой
   if (!el.dialog.hidden) {
     if (e.key === 'Escape') closeDialog(false);
     return;
@@ -1469,6 +1470,99 @@ function bookRow(meta) {
   return li;
 }
 
+// "1 240 слов"
+function wordsText(n) {
+  return n.toLocaleString('ru-RU') + ' ' + plural(n, T.chartWords);
+}
+
+// "<1 мин", "25 мин", "1 ч", "1 ч 5 мин"
+function durationText(ms) {
+  const min = Math.round(ms / 60000);
+  if (min < 1) return T.durLess;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  if (!h) return fmt(T.durMin, { m });
+  return m ? fmt(T.durHourMin, { h, m }) : fmt(T.durHour, { h });
+}
+
+// ---------- график "слов по дням" ----------
+// days - {'ГГГГ-ММ-ДД': {ms, words}}; opts - {dateKey(ms), words(n) -> "1 240 слов", duration(ms) -> "25 мин",
+// text - объект с подписями (T), count = 60}. Возвращает DOM-элемент: 60 столбцов (слева старый день, справа сегодня),
+// единый масштаб по максимуму; касание / клик / протяжка выбирает день, он показан в строке под графиком.
+function dayChart(days, opts) {
+  const count = opts.count || 60;
+  const tx = opts.text;
+  const num = (n) => n.toLocaleString('ru-RU');
+  const box = node('div', 'dchart');
+
+  // последние count календарных дней, включая сегодня (середина дня - чтобы не спотыкаться о смену времени)
+  const base = new Date();
+  const list = [];
+  for (let k = count - 1; k >= 0; k--) {
+    const key = opts.dateKey(new Date(base.getFullYear(), base.getMonth(), base.getDate() - k, 12).getTime());
+    const d = days[key];
+    list.push({ key, words: d && d.words > 0 ? d.words : 0, ms: d && d.ms > 0 ? d.ms : 0 });
+  }
+  const total = list.reduce((sum, d) => sum + d.words, 0);
+  if (!total) {
+    box.append(node('p', 'dchart-empty', tx.chartEmpty));
+    return box;
+  }
+  const max = Math.max(...list.map((d) => d.words));
+  const active = list.filter((d) => d.words > 0).length;
+
+  const head = node('div', 'dchart-head');
+  head.append(node('span', 'dchart-title', tx.chartTitle), node('span', 'dchart-max', fmt(tx.chartMax, { n: num(max) })));
+
+  const bars = node('div', 'dchart-bars');
+  const info = node('p', 'dchart-info');
+  info.setAttribute('aria-live', 'polite');
+  const cols = list.map((d) => {
+    const col = node('div', 'dchart-col');
+    const bar = node('i', d.words ? 'dchart-bar' : 'dchart-bar zero');
+    if (d.words) bar.style.height = (d.words / max * 100).toFixed(2) + '%';
+    col.append(bar);
+    bars.append(col);
+    return col;
+  });
+
+  const dateText = (key) => {
+    const [y, m, dd] = key.split('-').map(Number);
+    const o = { day: 'numeric', month: 'long' };
+    if (y !== base.getFullYear()) o.year = 'numeric';
+    return new Date(y, m - 1, dd).toLocaleDateString('ru-RU', o);
+  };
+  let current = -1;
+  const select = (i) => {
+    i = Math.max(0, Math.min(count - 1, i));
+    if (i === current) return;
+    if (current >= 0) cols[current].classList.remove('on');
+    current = i;
+    cols[i].classList.add('on');
+    const d = list[i];
+    info.textContent = d.words
+      ? dateText(d.key) + ' · ' + opts.words(d.words) + ' · ' + opts.duration(d.ms)
+      : dateText(d.key) + ' · ' + tx.chartNone;
+  };
+  // протяжка пальцем по горизонтали выбирает дни, вертикаль остаётся прокруткой (touch-action: pan-y)
+  const pick = (e) => {
+    const r = bars.getBoundingClientRect();
+    select(Math.floor((e.clientX - r.left) / r.width * count));
+  };
+  let down = false;
+  bars.addEventListener('pointerdown', (e) => { down = true; pick(e); });
+  bars.addEventListener('pointermove', (e) => { if (down || e.pointerType === 'mouse') pick(e); });
+  const up = () => { down = false; };
+  bars.addEventListener('pointerup', up);
+  bars.addEventListener('pointercancel', up);
+  bars.addEventListener('pointerleave', up);
+  select(count - 1);
+
+  const sum = fmt(tx.chartSum, { words: opts.words(total), avg: num(Math.round(total / active)) });
+  box.append(head, bars, info, node('p', 'dchart-hint', tx.chartHint), node('p', 'dchart-sum', sum));
+  return box;
+}
+
 function renderStats() {
   const box = $('stats');
   const now = Date.now();
@@ -1491,7 +1585,10 @@ function renderStats() {
     s.append(node('b', '', n.toLocaleString('ru-RU')), node('span', '', plural(n, forms)));
     return s;
   };
-  box.replaceChildren(tile(today, T.statToday), tile(week, T.statWeek), tile(streak, T.statStreak));
+  box.replaceChildren(
+    tile(today, T.statToday), tile(week, T.statWeek), tile(streak, T.statStreak),
+    dayChart(days, { dateKey, words: wordsText, duration: durationText, text: T }),
+  );
   box.hidden = false;
 }
 
@@ -1772,10 +1869,87 @@ if ('serviceWorker' in navigator && !window.Capacitor && (location.protocol === 
   }).catch(() => { /* без офлайна */ });
 }
 
+// ---------- окно "Приложение обновилось" ----------
+// Один раз после обновления (тихого в Android и веб): что нового с прошлого показанного номера.
+// publish.py пишет в version.js window.APP_CHANGES = [{v, n, notes}, ...] (последние 5, новые сверху).
+// reader.seenVersion - APP_WEB последней показанной версии; нет ключа (первая установка или первый запуск
+// с этой функцией) - запоминаем номер молча. Не показываем во время чтения, при открытых панели, окне,
+// предложении обновить APK и пока палец на экране - ждём, проверяя раз в секунду.
+
+const WHATSNEW_MAX = 5;
+let whatsNewTimer = 0;
+
+function whatsNewBusy() {
+  const upd = document.getElementById('update'); // плашка нового APK создаётся в native.js (только Android)
+  return playing || pointers.size > 0 || document.hidden || !el.panel.hidden || !el.dialog.hidden
+    || !$('drop').hidden || !!(upd && !upd.hidden);
+}
+
+function closeWhatsNew() {
+  const box = $('whatsnew');
+  if (box.hidden) return;
+  box.hidden = true;
+  el.library.inert = false;
+  el.reader.inert = false;
+  el.panel.inert = false;
+  store('seenVersion', Number(window.APP_WEB) || 0);
+}
+
+function showWhatsNew(list) {
+  const first = list[0];
+  const ver = String(window.APP_VERSION || '').split(' от ')[0] || first.v;
+  $('whatsnew-title').textContent = fmt(T.whatsNewTitle, { N: ver });
+  const items = $('whatsnew-list');
+  items.replaceChildren();
+  if (list.length === 1) {
+    items.append(node('p', 'wn-one', first.notes));
+  } else {
+    for (const c of list) {
+      const li = node('li');
+      li.append(node('b', '', c.v), ' - ' + c.notes);
+      items.append(li);
+    }
+  }
+  $('whatsnew-ok').onclick = closeWhatsNew;
+  el.library.inert = true;
+  el.reader.inert = true;
+  el.panel.inert = true;
+  $('whatsnew').hidden = false;
+  items.scrollTop = 0;
+  $('whatsnew-ok').focus();
+  track('whatsnew_shown', { to: window.APP_WEB });
+}
+
+function checkWhatsNew() {
+  const cur = Number(window.APP_WEB) || 0;
+  if (!cur || !Array.isArray(window.APP_CHANGES)) return;
+  const seen = load('seenVersion', null);
+  if (typeof seen !== 'number') {
+    store('seenVersion', cur);
+    return;
+  }
+  if (seen >= cur) return;
+  const list = window.APP_CHANGES
+    .filter((c) => c && c.notes && Number(c.n) > seen)
+    .sort((a, b) => b.n - a.n)
+    .slice(0, WHATSNEW_MAX);
+  if (!list.length) {
+    store('seenVersion', cur);
+    return;
+  }
+  const tick = () => {
+    if (whatsNewBusy()) return;
+    clearInterval(whatsNewTimer);
+    showWhatsNew(list);
+  };
+  whatsNewTimer = setInterval(tick, 1000);
+}
+
 // кнопка "назад" Android: закрыть окно, затем вернуться в библиотеку, иначе свернуть приложение
 if (plugins.App) {
   plugins.App.addListener('backButton', () => {
-    if (!el.dialog.hidden) closeDialog(false);
+    if (!$('whatsnew').hidden) closeWhatsNew();
+    else if (!el.dialog.hidden) closeDialog(false);
     else if (!el.panel.hidden) panelBack();
     else if (!el.reader.hidden) showLibrary();
     else plugins.App.minimizeApp();
@@ -1797,3 +1971,6 @@ window.Reader = {
     tokenize: (text, lang) => { sets = setsFor(lang); return tokenize(text); },
   },
 };
+
+// окно "что нового" - когда библиотека уже нарисована
+window.Reader.ready.then(checkWhatsNew, () => { /* без окна */ });
