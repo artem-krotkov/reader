@@ -1,0 +1,120 @@
+{
+ "code": 2,
+ "name": "0.1.2",
+ "notes": "Telegram-библиотека, форматы DOCX и HTML, первый APK",
+ "native_hash": "ac4f8bdc7c12f71a23188d6e00d0284430e44c1ca903922e27dc8250c0337697",
+ "url": "https://github.com/artem-krotkov/reader/releases/download/v0.1.2/reader-0.1.2.apk",
+ "web": {
+  "code": 2,
+  "name": "0.1.2",
+  "min_native": 2,
+  "notes": "Telegram-библиотека, форматы DOCX и HTML, первый APK",
+  "manifest": [
+   {
+    "file_name": "app.js",
+    "file_hash": "4a834248baeb2405ce219703802fd7a95d518d41042c2912730f89c7733ad5bb",
+    "download_url": "https://artem-krotkov.github.io/reader/app.js?h=4a834248baeb"
+   },
+   {
+    "file_name": "fonts/literata-cyrillic.woff2",
+    "file_hash": "39bb5c343c21e6a4b29fef83c0b909d2c80fd9084d46c981b742b1dac54663d0",
+    "download_url": "https://artem-krotkov.github.io/reader/fonts/literata-cyrillic.woff2?h=39bb5c343c21"
+   },
+   {
+    "file_name": "fonts/literata-latin.woff2",
+    "file_hash": "a60c193b55766b68b922e2327e15c2d8c145532f283a27c3411b9c47a8583d18",
+    "download_url": "https://artem-krotkov.github.io/reader/fonts/literata-latin.woff2?h=a60c193b5576"
+   },
+   {
+    "file_name": "fonts/OFL-literata.txt",
+    "file_hash": "9895ebc015226accf416b758ac1ca02a2fb4f83a89d316791ef697c3dc0852aa",
+    "download_url": "https://artem-krotkov.github.io/reader/fonts/OFL-literata.txt?h=9895ebc01522"
+   },
+   {
+    "file_name": "fonts/OFL-roboto-condensed.txt",
+    "file_hash": "82baba1bc6be17e47b138e90ab99ad134168f931282b68bc560102ab1db743c1",
+    "download_url": "https://artem-krotkov.github.io/reader/fonts/OFL-roboto-condensed.txt?h=82baba1bc6be"
+   },
+   {
+    "file_name": "fonts/roboto-condensed-cyrillic.woff2",
+    "file_hash": "c4afc8bd4b1886495a93a274e179a27962732a83176b79f7109608f2d08cb94a",
+    "download_url": "https://artem-krotkov.github.io/reader/fonts/roboto-condensed-cyrillic.woff2?h=c4afc8bd4b18"
+   },
+   {
+    "file_name": "fonts/roboto-condensed-latin.woff2",
+    "file_hash": "543c03fff71d1b39590af102e0852c2dbce46f4dbe4faaebafbef6edc82e78f5",
+    "download_url": "https://artem-krotkov.github.io/reader/fonts/roboto-condensed-latin.woff2?h=543c03fff71d"
+   },
+   {
+    "file_name": "icons/icon-180.png",
+    "file_hash": "10463be18fd60b473dd9b2d87ce0e641392cc25f446b6d24c22d16287afcf01f",
+    "download_url": "https://artem-krotkov.github.io/reader/icons/icon-180.png?h=10463be18fd6"
+   },
+   {
+    "file_name": "icons/icon-192.png",
+    "file_hash": "d78c89a98f1764dc3d8e565f48d7cceed329a9b3edcb8fe82fdee48a3fb63058",
+    "download_url": "https://artem-krotkov.github.io/reader/icons/icon-192.png?h=d78c89a98f17"
+   },
+   {
+    "file_name": "icons/icon-512.png",
+    "file_hash": "98913cb2a8da44114a3c398f1c522d12cd976480c615e6d6bbf7ce11d7f5ce26",
+    "download_url": "https://artem-krotkov.github.io/reader/icons/icon-512.png?h=98913cb2a8da"
+   },
+   {
+    "file_name": "index.html",
+    "file_hash": "c0f6f5bee11b49ac109f56db688ca9883ce2d1c0298acbce24510b8ddf1ac32b",
+    "download_url": "https://artem-krotkov.github.io/reader/index.html?h=c0f6f5bee11b"
+   },
+   {
+    "file_name": "lib/jszip.min.js",
+    "file_hash": "acc7e41455a80765b5fd9c7ee1b8078a6d160bbbca455aeae854de65c947d59e",
+    "download_url": "https://artem-krotkov.github.io/reader/lib/jszip.min.js?h=acc7e41455a8"
+   },
+   {
+    "file_name": "lib/LICENSE-jszip.txt",
+    "file_hash": "566c953c6090b1218ca6217dd7359d45dde46581968586dc607d59a78af6a9c4",
+    "download_url": "https://artem-krotkov.github.io/reader/lib/LICENSE-jszip.txt?h=566c953c6090"
+   },
+   {
+    "file_name": "manifest.webmanifest",
+    "file_hash": "f14f622f51b0dd5fab322462d93c9ffe8ded157fa01c2ec6eb78163673565528",
+    "download_url": "https://artem-krotkov.github.io/reader/manifest.webmanifest?h=f14f622f51b0"
+   },
+   {
+    "file_name": "native.js",
+    "file_hash": "8378a097469a5ea5cc918aa4dfb6fe251f6cc5d4004aedf2a1419b7a484660c4",
+    "download_url": "https://artem-krotkov.github.io/reader/native.js?h=8378a097469a"
+   },
+   {
+    "file_name": "parsers.js",
+    "file_hash": "03ca2449741c3411da1f7d4c718b5bc14cb30f6a88fcd1fd8578c7c52d595969",
+    "download_url": "https://artem-krotkov.github.io/reader/parsers.js?h=03ca2449741c"
+   },
+   {
+    "file_name": "strings.js",
+    "file_hash": "26e0dcd23766eb6aab025d736e681c2f7c9b4559098d5bfbd00958a7c6863941",
+    "download_url": "https://artem-krotkov.github.io/reader/strings.js?h=26e0dcd23766"
+   },
+   {
+    "file_name": "style.css",
+    "file_hash": "c0e878097691e1a666e1d426ba4fee7296c74fe95f5320760bef59a03fd7e09f",
+    "download_url": "https://artem-krotkov.github.io/reader/style.css?h=c0e878097691"
+   },
+   {
+    "file_name": "sw.js",
+    "file_hash": "9f89b06f6a8ce57f2092f995116acd161fce2f9cfc73fdb9aeda78a1a474bf1d",
+    "download_url": "https://artem-krotkov.github.io/reader/sw.js?h=9f89b06f6a8c"
+   },
+   {
+    "file_name": "telegram.js",
+    "file_hash": "82cffaae1f29a7dc5f4a46ff15815ce48649d40b41a521bcdbee86fd307654b0",
+    "download_url": "https://artem-krotkov.github.io/reader/telegram.js?h=82cffaae1f29"
+   },
+   {
+    "file_name": "version.js",
+    "file_hash": "59be449ded4276ea83420afd710c84f9703eb1213b939d4f85c2a5c155b006ac",
+    "download_url": "https://artem-krotkov.github.io/reader/version.js?h=59be449ded42"
+   }
+  ]
+ }
+}

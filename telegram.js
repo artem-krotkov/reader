@@ -9,7 +9,7 @@
   // Переключатель Telegram-библиотеки. false - раздела в настройках, подсказок про бота и автосинхронизации нет,
   // в справке нет упоминаний бота. Включить для проверки на своём компьютере: localStorage reader.tgEnabled = true
   // (работает только на localhost). Перед выкладкой с Worker сменить на true.
-  const TG_ENABLED = false;
+  const TG_ENABLED = true;
   let enabled = TG_ENABLED;
   try {
     if (!enabled && /^(localhost|127\.0\.0\.1)$/.test(location.hostname)) enabled = JSON.parse(localStorage.getItem('reader.tgEnabled')) === true;

@@ -1394,8 +1394,8 @@ async function importOne(file) {
     const book = await window.Parsers.parse(file);
     const r = await addBook(book);
     return r.status === 'added'
-      ? { kind: 'ok', text: fmt(T.importDone, { title: r.title }) }
-      : { kind: 'warn', text: fmt(T.importDuplicate, { title: r.title }) };
+      ? { kind: 'ok', id: r.id, text: fmt(T.importDone, { title: r.title }) }
+      : { kind: 'warn', id: r.id, text: fmt(T.importDuplicate, { title: r.title }) };
   } catch (e) {
     const code = e && e.name === 'ParseError' ? e.code : 'unknown';
     return { kind: 'err', text: fmt(T.errors[code] || T.errors.unknown, { name: file.name }) };
@@ -1416,6 +1416,28 @@ async function importFiles(files) {
   }
   renderNotice(results);
   importing = false;
+}
+
+// "Открыть с помощью" / "Поделиться" в Android (native.js): один файл - добавить и сразу открыть книгу
+// (если она уже есть - открыть её), несколько - добавить в библиотеку и показать итог
+async function openFiles(files) {
+  files = [...files];
+  if (!files.length) return;
+  if (!el.dialog.hidden) closeDialog(false);
+  closePanel();
+  showLibrary();
+  if (files.length > 1) return importFiles(files);
+  if (importing) return;
+  importing = true;
+  try {
+    renderNotice([{ kind: 'busy', text: fmt(T.importing, { name: files[0].name }) }]);
+    await new Promise((r) => setTimeout(r, 30));
+    const res = await importOne(files[0]);
+    renderNotice(res.id ? [] : [res]);
+    if (res.id) await openBook(res.id);
+  } finally {
+    importing = false;
+  }
 }
 
 $('add').addEventListener('click', () => $('file').click());
@@ -1501,6 +1523,7 @@ if (plugins.App) {
 window.Reader = {
   addBook,
   openBook,
+  openFiles,
   ready: boot(),
   state: () => ({ pos: { ...pos }, wpm, mode, playing, book: bk.meta && bk.meta.id }),
   books: () => libBooks.map((b) => ({ ...b })),

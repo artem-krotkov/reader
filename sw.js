@@ -3,25 +3,26 @@
 // При обновлении неизменённые файлы переносятся из старого кеша, по сети качаются только изменённые.
 // В сборке Android (Capacitor) не используется.
 const FILES = {
- "./": "453874ac218f4da7",
- "index.html": "453874ac218f4da7",
+ "./": "c0f6f5bee11b49ac",
+ "index.html": "c0f6f5bee11b49ac",
  "style.css": "c0e878097691e1a6",
- "app.js": "08300ea198741fd8",
- "strings.js": "766a173fc500917b",
- "parsers.js": "2df1ecd53c0bd398",
- "telegram.js": "03068f92f81d14e7",
- "version.js": "46743a01e8023148",
+ "app.js": "4a834248baeb2405",
+ "strings.js": "26e0dcd23766eb6a",
+ "parsers.js": "03ca2449741c3411",
+ "telegram.js": "82cffaae1f29a7dc",
+ "native.js": "8378a097469a5ea5",
+ "version.js": "59be449ded4276ea",
  "lib/jszip.min.js": "acc7e41455a80765",
  "manifest.webmanifest": "f14f622f51b0dd5f",
- "icons/icon-180.png": "0b87dadeac913dd9",
- "icons/icon-192.png": "518238d2814744df",
- "icons/icon-512.png": "67f219966de52372",
+ "icons/icon-180.png": "10463be18fd60b47",
+ "icons/icon-192.png": "d78c89a98f1764dc",
+ "icons/icon-512.png": "98913cb2a8da4411",
  "fonts/roboto-condensed-cyrillic.woff2": "c4afc8bd4b188649",
  "fonts/roboto-condensed-latin.woff2": "543c03fff71d1b39",
  "fonts/literata-cyrillic.woff2": "39bb5c343c21e6a4",
  "fonts/literata-latin.woff2": "a60c193b55766b68"
 };
-const CACHE = 'potok-7c4388ebc5';
+const CACHE = 'potok-d61489e878';
 const META = '__hashes';
 
 self.addEventListener('install', (e) => {

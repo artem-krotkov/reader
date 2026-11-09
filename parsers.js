@@ -1,14 +1,15 @@
 /*
- * parsers.js - разбор электронных книг (FB2, FB2.ZIP/ZIP, EPUB, TXT) в единый формат Book.
+ * parsers.js - разбор электронных книг (FB2, FB2.ZIP/ZIP, EPUB, TXT, DOCX, HTML) в единый формат Book.
  * Контракт: CONTRACT.md. Глобальный объект window.Parsers: EXTENSIONS, accept, parse(file), ParseError.
  * Нужны только браузерные API (DOMParser, TextDecoder, Blob, canvas) и JSZip (lib/jszip.min.js).
  */
 (function (global) {
   'use strict';
 
-  var EXTENSIONS = ['.fb2', '.fb2.zip', '.epub', '.txt', '.zip'];
+  var EXTENSIONS = ['.fb2', '.fb2.zip', '.epub', '.txt', '.zip', '.docx', '.html', '.htm'];
   var ACCEPT = EXTENSIONS.join(',') +
-    ',application/epub+zip,application/x-fictionbook+xml,application/zip,text/plain';
+    ',application/epub+zip,application/x-fictionbook+xml,application/zip,text/plain,text/html,' +
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
   var MIN_WORDS = 20;            // меньше - книга считается пустой
   var SHORT_CHAPTER_WORDS = 30;  // короче - файл EPUB приклеивается к следующему
@@ -90,7 +91,7 @@
   }
 
   function stripExt(name) {
-    return name.replace(/^.*[\\/]/, '').replace(/\.(fb2\.zip|fb2|epub|txt|zip)$/i, '').trim();
+    return name.replace(/^.*[\\/]/, '').replace(/\.(fb2\.zip|fb2|epub|txt|zip|docx|html?|xhtml)$/i, '').trim();
   }
 
   // ---------------------------------------------------------------- байты и кодировки
@@ -105,6 +106,25 @@
       r.onerror = function () { reject(r.error); };
       r.readAsArrayBuffer(file);
     });
+  }
+
+  function isOle(b) {
+    var sig = [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1];
+    if (b.length < 8) return false;
+    for (var i = 0; i < 8; i++) if (b[i] !== sig[i]) return false;
+    return true;
+  }
+
+  // Есть ли в байтах строка ASCII в виде UTF-16LE (имена записей OLE)
+  function hasUtf16(b, str) {
+    var n = str.length, first = str.charCodeAt(0);
+    for (var i = 0; i + 2 * n <= b.length; i++) {
+      if (b[i] !== first || b[i + 1] !== 0) continue;
+      var k = 1;
+      while (k < n && b[i + 2 * k] === str.charCodeAt(k) && b[i + 2 * k + 1] === 0) k++;
+      if (k === n) return true;
+    }
+    return false;
   }
 
   function isZip(b) { return b.length > 3 && b[0] === 0x50 && b[1] === 0x4b && (b[2] === 3 || b[2] === 5); }
@@ -220,6 +240,7 @@
 
   function childEls(el, name) {
     var out = [];
+    name = name && name.toLowerCase();
     for (var c = el.firstElementChild; c; c = c.nextElementSibling) {
       if (!name || lname(c) === name) out.push(c);
     }
@@ -227,6 +248,7 @@
   }
 
   function firstChild(el, name) {
+    name = name.toLowerCase();
     for (var c = el.firstElementChild; c; c = c.nextElementSibling) if (lname(c) === name) return c;
     return null;
   }
@@ -378,6 +400,17 @@
     return out;
   }
 
+  var CYR_LANGS = { ru: 1, uk: 1, be: 1, bg: 1, sr: 1, mk: 1, kk: 1, ky: 1, tg: 1, mn: 1 };
+
+  // Заявленный язык не должен противоречить алфавиту текста (Word часто ставит en-US по умолчанию)
+  function crossCheckLang(declared, chapters) {
+    var guess = guessLang(chapters);
+    if (!declared) return guess;
+    if (guess === 'ru' && !CYR_LANGS[declared]) return 'ru';
+    if (guess === 'en' && CYR_LANGS[declared]) return 'en';
+    return declared;
+  }
+
   async function buildBook(f, getCover) {
     var chapters = cleanChapters(f.chapters);
     var cover = null;
@@ -385,7 +418,7 @@
     return {
       title: f.title || f.fallbackTitle || 'Book',
       author: f.author || '',
-      lang: normLang(f.lang) || guessLang(chapters),
+      lang: f.checkLang ? crossCheckLang(normLang(f.lang), chapters) : (normLang(f.lang) || guessLang(chapters)),
       cover: cover || null,
       format: f.format,
       chapters: chapters
@@ -706,7 +739,8 @@
     'table thead tbody tfoot caption dl dt dd pre body html main hr address center form fieldset details summary ' +
     'td th').split(' ').forEach(function (n) { BLOCK[n] = true; });
   var SKIP = {};
-  ('head script style svg img image noscript rt rp nav audio video canvas object iframe math title')
+  ('head script style svg img image noscript rt rp nav audio video canvas object iframe math title ' +
+    'button select option textarea template')
     .split(' ').forEach(function (n) { SKIP[n] = true; });
 
   function epubType(el) {
@@ -1122,13 +1156,226 @@
     }, null);
   }
 
+  // ---------------------------------------------------------------- общее для DOCX и HTML
+
+  // Единственный заголовок верхнего уровня при нескольких подзаголовках - это название книги, а не глава.
+  // units: [{ t, h }] (h - уровень 1-3 или 0). Возвращает название и убирает его из units.
+  function liftDocTitle(units) {
+    var h1 = [], sub = 0, i;
+    for (i = 0; i < units.length; i++) {
+      if (units[i].h === 1) h1.push(i); else if (units[i].h) sub++;
+    }
+    if (h1.length === 1 && sub >= 2 && h1[0] < 3) return units.splice(h1[0], 1)[0].t;
+    return '';
+  }
+
+  // ---------------------------------------------------------------- DOCX
+
+  var W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+  var HEADING_NAME = /^(?:heading|заголовок|überschrift|titre|título)\s*([1-9])$/i;
+  var TOC_NAME = /^(?:toc\b|table of contents|оглавление|содержание|заголовок оглавления)/i;
+  var TOC_ID = /^toc\s*\d*$|^tocheading$/i;
+  // Не берём текст из свойств, рисунков, текстовых полей, ссылок на сноски и кодов полей
+  var DOCX_SKIP = { ppr: 1, rpr: 1, sectpr: 1, drawing: 1, pict: 1, txbxcontent: 1, fallback: 1, object: 1,
+    footnotereference: 1, endnotereference: 1, commentreference: 1, instrtext: 1, deltext: 1 };
+
+  function wAttr(el, name) {
+    return el.getAttributeNS(W_NS, name) || el.getAttribute('w:' + name) || '';
+  }
+
+  function levelFromName(s) {
+    var m = HEADING_NAME.exec(String(s || '').replace(/[_-]+/g, ' ').trim());
+    return m ? +m[1] : 0;
+  }
+
+  // styles.xml -> { styles: { id: { name, based, outline } }, lang }
+  function parseDocxStyles(doc) {
+    var styles = {}, lang = '';
+    if (!doc) return { styles: styles, lang: lang };
+    var list = doc.getElementsByTagNameNS('*', 'style');
+    for (var i = 0; i < list.length; i++) {
+      var st = list[i], type = wAttr(st, 'type');
+      if (type && type !== 'paragraph') continue;
+      var nameEl = firstChild(st, 'name'), basedEl = firstChild(st, 'basedOn');
+      var ppr = firstChild(st, 'pPr'), ol = ppr && firstChild(ppr, 'outlineLvl');
+      styles[wAttr(st, 'styleId')] = {
+        name: nameEl ? wAttr(nameEl, 'val') : '',
+        based: basedEl ? wAttr(basedEl, 'val') : '',
+        outline: ol ? parseInt(wAttr(ol, 'val'), 10) : -1,
+        info: null
+      };
+    }
+    var dd = firstDesc(doc, 'docDefaults'), l = dd && firstDesc(dd, 'lang');
+    if (l) lang = wAttr(l, 'val');
+    return { styles: styles, lang: lang };
+  }
+
+  // Уровень заголовка (0 - не заголовок) и признак оглавления по стилю, с учётом basedOn
+  function styleInfo(styles, id, depth) {
+    var st = styles[id];
+    if (!st) return { level: levelFromName(id), toc: TOC_ID.test(id) };
+    if (st.info) return st.info;
+    var level = levelFromName(st.name) || levelFromName(id);
+    var toc = TOC_NAME.test(st.name) || TOC_ID.test(id);
+    if (!level && st.outline >= 0) level = st.outline < 9 ? st.outline + 1 : 0;
+    else if (!level && !toc && st.based && depth < 8) {
+      var b = styleInfo(styles, st.based, depth + 1);
+      level = b.level; toc = b.toc;
+    }
+    st.info = { level: level, toc: toc };
+    return st.info;
+  }
+
+  function docxParaInfo(p, styles) {
+    var ppr = firstChild(p, 'pPr'), level = 0, toc = false;
+    if (ppr) {
+      var ps = firstChild(ppr, 'pStyle'), ol = firstChild(ppr, 'outlineLvl');
+      if (ps) { var info = styleInfo(styles, wAttr(ps, 'val'), 0); level = info.level; toc = info.toc; }
+      if (ol) { var v = parseInt(wAttr(ol, 'val'), 10); level = v >= 0 && v < 9 ? v + 1 : 0; }
+    }
+    return { level: level, toc: toc };
+  }
+
+  function docxInline(node, parts) {
+    for (var c = node.firstElementChild; c; c = c.nextElementSibling) {
+      var n = lname(c);
+      if (n === 't') parts.push(c.textContent);
+      else if (n === 'tab' || n === 'br' || n === 'cr') parts.push(' ');
+      else if (n === 'nobreakhyphen') parts.push('-');
+      else if (DOCX_SKIP[n]) continue;
+      else if (n === 'r' && firstChild(c, 'rPr') && firstChild(firstChild(c, 'rPr'), 'vanish')) continue;   // скрытый текст
+      else docxInline(c, parts);
+    }
+  }
+
+  function docxText(p) {
+    var parts = [];
+    docxInline(p, parts);
+    return norm(parts.join(''));
+  }
+
+  // Строка таблицы -> абзац, ячейки через "; "
+  function docxTable(tbl, units) {
+    for (var r = tbl.firstElementChild; r; r = r.nextElementSibling) {
+      if (lname(r) !== 'tr') continue;
+      var cells = [];
+      for (var c = r.firstElementChild; c; c = c.nextElementSibling) {
+        if (lname(c) !== 'tc') continue;
+        var ps = c.getElementsByTagNameNS('*', 'p'), parts = [];
+        for (var i = 0; i < ps.length; i++) { var t = docxText(ps[i]); if (t) parts.push(t); }
+        if (parts.length) cells.push(parts.join(' '));
+      }
+      if (cells.length) units.push({ t: cells.join('; '), h: 0 });
+    }
+  }
+
+  function docxCollect(container, styles, units) {
+    for (var c = container.firstElementChild; c; c = c.nextElementSibling) {
+      var n = lname(c);
+      if (n === 'p') {
+        var info = docxParaInfo(c, styles);
+        if (info.toc) continue;
+        var t = docxText(c);
+        if (t) units.push({ t: t, h: info.level >= 1 && info.level <= 3 ? info.level : 0 });
+      } else if (n === 'tbl') docxTable(c, units);
+      else if (n !== 'sectpr' && n !== 'sdtpr') docxCollect(c, styles, units);   // sdt, ins, smartTag и т.п.
+    }
+  }
+
+  async function docxMainPath(idx) {
+    var data = await idx.bytes('_rels/.rels'), doc = data && parseXml(decodeXmlBytes(data));
+    if (doc) {
+      var rels = doc.getElementsByTagNameNS('*', 'Relationship');
+      for (var i = 0; i < rels.length; i++) {
+        if (/\/officeDocument$/.test(rels[i].getAttribute('Type') || '')) {
+          var path = resolveHref('', rels[i].getAttribute('Target') || '').path;
+          if (path && idx.find(path)) return path;
+        }
+      }
+    }
+    return 'word/document.xml';
+  }
+
+  async function parseDocxZip(zip, fallbackTitle) {
+    var idx = new ZipIndex(zip), mainPath = await docxMainPath(idx);
+    var data = await idx.bytes(mainPath);
+    if (!data) fail('broken', 'DOCX has no word/document.xml');
+    var doc = parseXml(decodeXmlBytes(data));
+    var body = doc && firstDesc(doc, 'body');
+    if (!body) fail('broken', 'DOCX main document is not valid');
+    var sdata = await idx.bytes(dirOf(mainPath) + 'styles.xml');
+    var st = parseDocxStyles(sdata && parseXml(decodeXmlBytes(sdata)));
+    var cdata = await idx.bytes('docProps/core.xml'), core = cdata && parseXml(decodeXmlBytes(cdata));
+    var units = [];
+    docxCollect(body, st.styles, units);
+    var t = tick(); if (t) await t;
+    var lifted = liftDocTitle(units);
+    return buildBook({
+      title: (core && textOf(firstDesc(core, 'title'))) || lifted,
+      fallbackTitle: fallbackTitle,
+      author: core ? textOf(firstDesc(core, 'creator')) : '',
+      lang: st.lang,
+      checkLang: true,
+      format: 'docx',
+      chapters: unitsToChapters(units)
+    }, null);
+  }
+
+  // ---------------------------------------------------------------- HTML
+
+  // Кодировка HTML: BOM, <meta charset> / http-equiv, иначе строгий UTF-8, иначе 8-битная по частотам
+  function decodeHtmlBytes(bytes) {
+    var b = bytes;
+    if ((b[0] === 0xef && b[1] === 0xbb && b[2] === 0xbf) || (b[0] === 0xff && b[1] === 0xfe) ||
+        (b[0] === 0xfe && b[1] === 0xff)) return decodeText(bytes);
+    var head = latin1Head(b, 4096);
+    var m = /<meta[^>]+charset\s*=\s*["']?\s*([\w.:-]+)/i.exec(head) || /<\?xml[^>]*encoding\s*=\s*["']([^"']+)/i.exec(head);
+    var label = m ? labelFromXmlDecl(m[1]) : '';
+    if (label && label !== 'utf-8') {
+      var s = tryDecode(label, bytes);
+      if (s !== null) return s;
+    }
+    return decodeText(bytes);
+  }
+
+  function metaContent(doc, name) {
+    var metas = doc.getElementsByTagName('meta');
+    for (var i = 0; i < metas.length; i++) {
+      if ((metas[i].getAttribute('name') || '').toLowerCase() === name) return norm(metas[i].getAttribute('content') || '');
+    }
+    return '';
+  }
+
+  async function parseHtml(bytes, fallbackTitle) {
+    var doc;
+    try { doc = new DOMParser().parseFromString(decodeHtmlBytes(bytes), 'text/html'); } catch (e) { doc = null; }
+    if (!doc || !doc.body) fail('broken', 'HTML cannot be parsed');
+    var seg = extractSegments(doc.body, null)[0];
+    var items = seg.total > 0 && seg.link / seg.total > 0.6 && seg.items.length >= 3 ? [] : dropLinkRuns(seg.items);
+    var units = items.map(function (it) { return { t: it.t, h: it.h >= 1 && it.h <= 3 ? it.h : 0 }; });
+    var t = tick(); if (t) await t;
+    var lifted = liftDocTitle(units);
+    var root = doc.documentElement;
+    return buildBook({
+      title: norm(doc.title || '') || lifted,
+      fallbackTitle: fallbackTitle,
+      author: metaContent(doc, 'author'),
+      lang: root.getAttribute('lang') || root.getAttribute('xml:lang') || '',
+      checkLang: true,
+      format: 'html',
+      chapters: unitsToChapters(units)
+    }, null);
+  }
+
   // ---------------------------------------------------------------- ZIP и точка входа
 
-  var BOOK_EXT = [/\.fb2$/i, /\.epub$/i, /\.txt$/i, /\.(zip)$/i];
+  // порядок важен: при нескольких файлах в архиве берётся первый подходящий вид, самый большой файл
+  var BOOK_EXT = [/\.fb2$/i, /\.epub$/i, /\.docx$/i, /\.txt$/i, /\.html?$/i, /\.zip$/i];
 
   async function parseZipBytes(bytes, fallbackTitle, depth) {
     var zip = await openZip(bytes), idx = new ZipIndex(zip);
     if (idx.find('META-INF/container.xml') || idx.find('mimetype')) return parseEpubZip(zip, fallbackTitle);
+    if (idx.find('word/document.xml')) return parseDocxZip(zip, fallbackTitle);
     var names = [];
     zip.forEach(function (p, entry) {
       if (!entry.dir && !/(^|\/)(__MACOSX|\.)/.test(p) && !/(^|\/)\._/.test(p)) names.push({ p: p, size: entry._data ? entry._data.uncompressedSize || 0 : 0 });
@@ -1137,20 +1384,26 @@
       var hits = names.filter(function (n) { return BOOK_EXT[k].test(n.p); });
       if (!hits.length) continue;
       hits.sort(function (a, b) { return b.size - a.size; });
-      if (k === 3 && depth >= 2) break;
+      if (k === BOOK_EXT.length - 1 && depth >= 2) break;
       return parseByName(await idx.bytes(hits[0].p), hits[0].p, fallbackTitle, depth + 1);
     }
-    return fail('unsupported', 'Zip has no FB2/EPUB/TXT file');
+    return fail('unsupported', 'Zip has no FB2/EPUB/DOCX/TXT/HTML file');
   }
 
   async function parseByName(bytes, name, fallbackTitle, depth) {
     var lower = String(name || '').toLowerCase();
     if (/\.txt$/.test(lower)) return parseTxt(bytes, fallbackTitle);
+    if (/\.(html?|xhtml)$/.test(lower)) return parseHtml(bytes, fallbackTitle);
+    if (isOle(bytes)) {   // OLE: пароль на DOCX (EncryptedPackage) или старый .doc
+      return hasUtf16(bytes, 'EncryptedPackage') ? fail('drm', 'Office file is password protected')
+        : fail('unsupported', 'Legacy OLE document (.doc) is not supported');
+    }
     if (isZip(bytes)) {
       if (/\.epub$/.test(lower)) return parseEpubZip(await openZip(bytes), fallbackTitle);
+      if (/\.docx$/.test(lower)) return parseDocxZip(await openZip(bytes), fallbackTitle);
       return depth > 2 ? fail('broken', 'Zip nested too deep') : parseZipBytes(bytes, fallbackTitle, depth);
     }
-    if (/\.(epub|zip)$/.test(lower)) return fail('broken', 'File is not a zip archive');
+    if (/\.(epub|docx|zip)$/.test(lower)) return fail('broken', 'File is not a zip archive');
     if (/\.fb2$/.test(lower)) return parseFb2(bytes, fallbackTitle);
     // расширение неизвестно: распознаём FB2 по содержимому
     if (/^\s*(<\?xml|<FictionBook)/i.test(latin1Head(bytes, 100).replace(/^\u00ef\u00bb\u00bf/, ''))) {
