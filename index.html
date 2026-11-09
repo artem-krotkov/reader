@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="ru" data-theme="black">
+<head>
+<meta name="robots" content="noindex">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#000000">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Поток">
+<title>Поток</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="stylesheet" href="style.css">
+<script>
+// тема до первой отрисовки, чтобы не мигал чёрный фон (значение - JSON)
+try {
+  var th = JSON.parse(localStorage.getItem('reader.theme'));
+  if (th === 'gray' || th === 'light') document.documentElement.setAttribute('data-theme', th);
+} catch (e) { /* по умолчанию чёрная */ }
+</script>
+</head>
+<body>
+
+<!-- библиотека -->
+<div id="library">
+  <div class="wrap">
+    <header id="lib-head">
+      <div class="brand">
+        <h1 data-t="appName"></h1>
+        <p data-t="tagline"></p>
+      </div>
+      <div class="icons">
+        <button id="lib-help" class="round" type="button" data-aria="helpBtn">?</button>
+        <button id="lib-settings" class="round" type="button" data-aria="settingsBtn">&#x2699;&#xFE0E;</button>
+      </div>
+    </header>
+
+    <div id="notice" hidden></div>
+
+    <button id="continue" type="button" hidden>
+      <span id="continue-cover"></span>
+      <span class="info">
+        <small data-t="continueTitle"></small>
+        <b id="continue-title"></b>
+        <span id="continue-author"></span>
+        <span class="meter"><i id="continue-bar"></i></span>
+        <span id="continue-pct"></span>
+      </span>
+    </button>
+
+    <div id="add-row">
+      <button id="add" type="button" data-t="addBook"></button>
+      <p class="muted" data-t="addFormats"></p>
+      <p class="muted" id="add-drop" data-t="addDrop"></p>
+      <button id="tg-hint" class="muted" type="button" hidden></button>
+    </div>
+
+    <div id="stats" hidden></div>
+
+    <div id="empty" hidden>
+      <h2 data-t="emptyTitle"></h2>
+      <p data-t="emptyText"></p>
+    </div>
+
+    <h3 id="books-title" data-t="booksTitle" hidden></h3>
+    <ul id="books"></ul>
+
+    <p id="install" hidden data-t="installIos"></p>
+  </div>
+  <input id="file" type="file" multiple hidden>
+</div>
+
+<!-- чтение -->
+<main id="reader" hidden>
+  <header id="top">
+    <div id="top-row">
+      <button id="back" class="ui" type="button" data-aria="backToLibrary">&#x2039;</button>
+      <button id="ref" class="ui" type="button"></button>
+      <span id="pct"></span>
+    </div>
+    <div id="progress"><div id="bar"></div></div>
+  </header>
+
+  <section id="stage">
+    <div class="guide"></div>
+    <div id="word"><span id="wl"></span><span id="wp"></span><span id="wr"></span></div>
+    <div class="guide"></div>
+  </section>
+
+  <p id="context"></p>
+  <p id="hint"></p>
+  <div id="flash"></div>
+
+  <footer id="controls" class="ui">
+    <button id="prev" type="button" data-t="prevSentence" data-aria="prevSentenceAria"></button>
+    <div id="speed">
+      <button id="slower" type="button" data-aria="slower">&minus;</button>
+      <span><b id="wpm"></b> <span data-t="wpmUnit"></span></span>
+      <button id="faster" type="button" data-aria="faster">+</button>
+    </div>
+    <button id="next" type="button" data-t="nextSentence" data-aria="nextSentenceAria"></button>
+  </footer>
+</main>
+
+<!-- оглавление, настройки, справка -->
+<div id="panel" class="ui" hidden>
+  <div id="panel-head">
+    <div id="panel-left">
+      <button id="panel-back" type="button" hidden></button>
+      <button id="panel-help" class="round" type="button" data-aria="helpBtn">?</button>
+      <button id="panel-settings" class="round" type="button" data-aria="settingsBtn">&#x2699;&#xFE0E;</button>
+    </div>
+    <h2 id="panel-title"></h2>
+    <button id="panel-close" type="button" data-aria="close">&#x2715;</button>
+  </div>
+  <div id="panel-list"></div>
+</div>
+
+<!-- подтверждение -->
+<div id="dialog" class="ui" hidden>
+  <div class="box" role="dialog" aria-modal="true">
+    <h3 id="dialog-title"></h3>
+    <p id="dialog-text"></p>
+    <div class="row">
+      <button id="dialog-cancel" type="button" data-t="cancel"></button>
+      <button id="dialog-ok" type="button"></button>
+    </div>
+  </div>
+</div>
+
+<div id="drop" hidden><p data-t="dropHere"></p></div>
+<div id="toast" role="status"></div>
+
+<script src="lib/jszip.min.js"></script>
+<script src="parsers.js"></script>
+<script src="telegram.js"></script>
+<script src="strings.js"></script>
+<script src="version.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
