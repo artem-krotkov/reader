@@ -458,6 +458,74 @@ button {
 
 #word.heading #wp { color: inherit; }
 
+/* показ предложениями: предложение целиком (или его часть) вместо слова; деление меряется по #st */
+#sent {
+  position: relative;
+  display: none;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  align-items: center;
+}
+
+#st {
+  width: 100%;
+  color: var(--fg);
+  font-size: 24px;
+  line-height: 1.5;
+  font-family: var(--read-font, inherit);
+  hyphens: auto;
+  -webkit-hyphens: auto;
+  overflow-wrap: break-word;
+}
+
+@media (min-width: 700px) { #st { font-size: 30px; } }
+
+#sent.heading #st {
+  color: var(--dim);
+  text-align: center;
+  font-size: 26px;
+}
+
+#st-n {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  color: var(--dim);
+  font-size: 12px;
+}
+
+body.sentence-view #sent { display: flex; }
+body.sentence-view #stage > :not(#sent) { display: none; }
+body.sentence-view #context { display: none; }
+body.sentence-view #speed { display: none; }
+
+/* внизу при показе предложениями - строка со словом (как в показе по словам): касание возвращает к словам */
+#wordstrip {
+  display: none;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  height: 64px;
+  margin-top: 8px;
+  padding: 0 8px;
+  border: 1px solid var(--faint);
+  border-radius: 12px;
+  background: none;
+  color: var(--fg);
+  font-size: var(--fs, 28px);
+  line-height: 1.2;
+  white-space: pre;
+  font-family: var(--read-font, inherit);
+}
+
+#wordstrip #sl { text-align: right; }
+#wordstrip #sp { color: var(--accent); }
+#wordstrip #sr { text-align: left; }
+#wordstrip.heading { color: var(--dim); }
+#wordstrip.heading #sp { color: inherit; }
+body.sentence-view #wordstrip { display: grid; }
+body.sentence-view #hint { bottom: calc(172px + env(safe-area-inset-bottom)); }
+
 #context {
   min-height: 7.5em;
   max-height: 30vh;

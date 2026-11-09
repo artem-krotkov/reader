@@ -3,15 +3,15 @@
 // При обновлении неизменённые файлы переносятся из старого кеша, по сети качаются только изменённые.
 // В сборке Android (Capacitor) не используется.
 const FILES = {
- "./": "c0f6f5bee11b49ac",
- "index.html": "c0f6f5bee11b49ac",
- "style.css": "c0e878097691e1a6",
- "app.js": "4a834248baeb2405",
- "strings.js": "26e0dcd23766eb6a",
+ "./": "8688cd8f064b3bab",
+ "index.html": "8688cd8f064b3bab",
+ "style.css": "d30676177a00d849",
+ "app.js": "422048a7f2963291",
+ "strings.js": "e1ea852991d78026",
  "parsers.js": "03ca2449741c3411",
  "telegram.js": "82cffaae1f29a7dc",
  "native.js": "8378a097469a5ea5",
- "version.js": "59be449ded4276ea",
+ "version.js": "a3c913a40a9ebd1c",
  "lib/jszip.min.js": "acc7e41455a80765",
  "manifest.webmanifest": "f14f622f51b0dd5f",
  "icons/icon-180.png": "10463be18fd60b47",
@@ -22,7 +22,7 @@ const FILES = {
  "fonts/literata-cyrillic.woff2": "39bb5c343c21e6a4",
  "fonts/literata-latin.woff2": "a60c193b55766b68"
 };
-const CACHE = 'potok-d61489e878';
+const CACHE = 'potok-c1cf2ed46e';
 const META = '__hashes';
 
 self.addEventListener('install', (e) => {

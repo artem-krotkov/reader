@@ -13,6 +13,7 @@ const el = {
   library: $('library'), reader: $('reader'), panel: $('panel'), dialog: $('dialog'),
   ref: $('ref'), bar: $('bar'), pct: $('pct'), word: $('word'), wl: $('wl'), wp: $('wp'), wr: $('wr'),
   context: $('context'), hint: $('hint'), wpm: $('wpm'),
+  sent: $('sent'), st: $('st'), stn: $('st-n'), strip: $('wordstrip'), sl: $('sl'), sp: $('sp'), sr: $('sr'),
   pTitle: $('panel-title'), pBack: $('panel-back'), pList: $('panel-list'),
 };
 
@@ -415,6 +416,196 @@ function nextSentence() {
   showPaused();
 }
 
+
+// ---------- показ предложениями ----------
+// view: 'words' (по умолчанию, RSVP) или 'sentence' - предложение целиком в #sent, без автосмены и скорости:
+// листание только касанием у краёв и кнопками. Длинное предложение делится на части (экраны) по смыслу.
+// Позиция по-прежнему {ch, p, i}: в этом режиме i - первый показ на экране; сохраняется как первое слово экрана.
+
+let view = load('view', 'words') === 'sentence' ? 'sentence' : 'words';
+const sentenceView = () => view === 'sentence';
+const screenCache = new Map(); // 'гл:абз:начало предложения' -> части [[первый показ, последний показ], ...]
+const MIN_FILL = 0.4; // на экране остаётся не меньше 40% того, что влезло: лучше крупный кусок, чем разрез в неудобном месте
+
+// влезает ли текст показов a..z абзаца в блок предложения (меряется в самом блоке)
+function fitsUnits(u, a, z) {
+  el.sent.classList.remove('heading');
+  const parts = [];
+  for (let k = a; k <= z; k++) parts.push(u[k].t);
+  el.st.textContent = parts.join(' ');
+  return el.st.offsetHeight <= el.sent.clientHeight - 6;
+}
+
+// сила границы после показа q: конец предложения, затем ";" и ":", затем запятая и тире
+function breakStrength(u, q) {
+  const t = u[q].t;
+  if (SENT_END.test(t)) return 3;
+  if (/[;:]["»”')]*$/.test(t)) return 2;
+  if (/[,—–]["»”')]*$/.test(t)) return 1;
+  return 0;
+}
+
+// части предложения a..z: сначала целиком; иначе экран набирается "сколько влезет" (бинарный поиск),
+// затем край сдвигается назад к ближайшей границе по смыслу (не дальше, чем до 40% экрана); иначе режем по слову
+function splitUnits(u, a, z) {
+  const parts = [];
+  let from = a;
+  while (from <= z) {
+    let lo = from;
+    let hi = z;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (fitsUnits(u, from, mid)) lo = mid;
+      else hi = mid - 1;
+    }
+    let end = lo;
+    if (end < z) {
+      const floor = from + Math.max(0, Math.floor((end - from + 1) * MIN_FILL) - 1);
+      for (const need of [3, 2, 1]) {
+        let q = end;
+        while (q >= floor && breakStrength(u, q) < need) q--;
+        if (q >= floor) {
+          end = q;
+          break;
+        }
+      }
+    }
+    parts.push([from, end]);
+    from = end + 1;
+  }
+  return parts;
+}
+
+function partsOf(ch, p, a, z) {
+  const key = ch + ':' + p + ':' + a;
+  let parts = screenCache.get(key);
+  if (!parts) {
+    const u = unitsAt(ch, p);
+    parts = a === z || fitsUnits(u, a, z) ? [[a, z]] : splitUnits(u, a, z);
+    if (screenCache.size > 300) screenCache.delete(screenCache.keys().next().value);
+    screenCache.set(key, parts);
+  }
+  return parts;
+}
+
+// экран позиции: {u, parts, k, a, z}; для заголовка главы null
+function screenOf() {
+  if (pos.p < 0) return null;
+  const u = unitsAt(pos.ch, pos.p);
+  const [a, z] = sentenceOf(u, pos.i);
+  const parts = partsOf(pos.ch, pos.p, a, z);
+  let k = parts.findIndex((q) => pos.i >= q[0] && pos.i <= q[1]);
+  if (k < 0) k = 0;
+  return { u, parts, k, a, z };
+}
+
+// позиция - в начало экрана, на котором лежит текущее слово
+function snapToScreen() {
+  const s = screenOf();
+  if (s) pos.i = s.parts[s.k][0];
+}
+
+function toLastPart() {
+  const s = screenOf();
+  pos.i = s.parts[s.parts.length - 1][0];
+}
+
+// экран назад: часть, затем предыдущее предложение (его последняя часть), абзац, заголовок главы
+function prevScreen() {
+  if (pos.p < 0) {
+    if (pos.ch > 0) {
+      const ch = pos.ch - 1;
+      if (lastSentenceBefore(ch, bk.chapters[ch].paras.length)) toLastPart();
+      else pos = { ch, p: -1, i: 0 };
+    }
+    return;
+  }
+  const s = screenOf();
+  if (s.k > 0) pos.i = s.parts[s.k - 1][0];
+  else if (s.a > 0) {
+    pos.i = s.u.starts[s.u.starts.indexOf(s.a) - 1];
+    toLastPart();
+  } else if (lastSentenceBefore(pos.ch, pos.p)) toLastPart();
+  else pos = { ch: pos.ch, p: -1, i: 0 };
+}
+
+// экран вперёд; false - книга кончилась
+function nextScreen() {
+  if (pos.p < 0) return startAt(pos.ch, 0);
+  const s = screenOf();
+  if (s.k + 1 < s.parts.length) pos.i = s.parts[s.k + 1][0];
+  else if (s.z + 1 < s.u.length) pos.i = s.z + 1;
+  else return startAt(pos.ch, pos.p + 1);
+  return true;
+}
+
+// шаг назад/вперёд для краёв, кнопок и стрелок; в режиме предложений вперёд - это чтение (считается в статистику)
+function goPrev() {
+  if (sentenceView()) {
+    prevScreen();
+    showPaused();
+  } else prevSentence();
+}
+
+function goNext() {
+  if (!sentenceView()) {
+    nextSentence();
+    return;
+  }
+  if (!session) startSession(true);
+  const ok = nextScreen();
+  if (!ok) toast(T.bookEnd);
+  else countScreen();
+  showPaused();
+}
+
+// экран показан при листании: считаем его слова, абзац - прочитанным, когда показан его последний показ
+function countScreen() {
+  const s = screenOf();
+  if (!s || !session) return;
+  const [i0, i1] = s.parts[s.k];
+  for (let k = i0; k <= i1; k++) session.words += s.u[k].k;
+  if (i1 === s.u.length - 1) markPara(pos.ch, pos.p);
+  touchManual();
+  if (!body.classList.contains('started')) {
+    body.classList.add('started');
+    if (!load('hintSeen', false)) store('hintSeen', true);
+  }
+}
+
+// ручная сессия статистики: кончается после минуты без касаний (время - по последнему касанию),
+// при выходе в меню или библиотеку, сворачивании, смене показа
+let manualIdle = 0;
+
+function touchManual() {
+  if (!sentenceView() || playing || !session) return;
+  session.last = Date.now();
+  clearTimeout(manualIdle);
+  manualIdle = setTimeout(endManual, 60000);
+}
+
+function endManual() {
+  clearTimeout(manualIdle);
+  if (playing || !session) return;
+  endSession(session.last || Date.now());
+  savePos();
+}
+
+function setView(v) {
+  pause();
+  endManual();
+  view = v;
+  store('view', v);
+  body.classList.toggle('sentence-view', sentenceView());
+  if (!bk.meta || el.reader.hidden) return;
+  measure(); // заодно сбрасывает кэш экранов
+  if (sentenceView()) snapToScreen();
+  showHint();
+  showPaused();
+}
+
+const toggleView = () => setView(sentenceView() ? 'words' : 'sentence');
+
 // ---------- шрифт, тема, управление ----------
 
 const FONTS = [
@@ -446,7 +637,8 @@ const SAMPLE = 'и сказал Бог: да будет свет. и стал с
 let baseFs = 44;
 
 function measure() {
-  const w = el.word.clientWidth || window.innerWidth - 32;
+  screenCache.clear();
+  const w = el.word.clientWidth || $('progress').clientWidth || window.innerWidth - 32;
   const charW = textWidth(SAMPLE, 100) / 100 / SAMPLE.length;
   baseFs = Math.min(60, (w / 2) * 0.96 / (FIT_CHARS * charW));
   el.word.style.setProperty('--line', Math.ceil(baseFs * 1.3) + 'px');
@@ -509,7 +701,8 @@ function fitFs(t, w, base) {
 function render() {
   const t = cur();
   const w = el.word.clientWidth || window.innerWidth - 32;
-  if (t.h) {
+  if (sentenceView()) renderSentence();
+  else if (t.h) {
     el.word.classList.add('heading');
     el.wl.textContent = '';
     el.wp.textContent = t.t;
@@ -534,6 +727,31 @@ function render() {
   if (el.pct.textContent !== pct) el.pct.textContent = pct;
 }
 
+// экран предложения: текст целиком (или его часть) и номер части; заголовок главы - отдельный экран
+function renderSentence() {
+  const s = screenOf();
+  el.sent.classList.toggle('heading', !s);
+  if (!s) {
+    el.st.textContent = chapterLabel(pos.ch);
+    el.stn.textContent = '';
+  } else {
+    const [i0, i1] = s.parts[s.k];
+    const parts = [];
+    for (let k = i0; k <= i1; k++) parts.push(s.u[k].t);
+    el.st.textContent = parts.join(' ');
+    el.stn.textContent = s.parts.length > 1 ? (s.k + 1) + ' / ' + s.parts.length : '';
+  }
+  // строка внизу: первое слово экрана, касание возвращает к словам
+  const t = cur();
+  const p = pivotOf(t);
+  el.sl.textContent = t.h ? '' : t.t.slice(0, p);
+  el.sp.textContent = t.h ? t.t : t.t[p] || '';
+  el.sr.textContent = t.h ? '' : t.t.slice(p + 1);
+  el.strip.classList.toggle('heading', !!t.h);
+  const w = (el.strip.clientWidth || window.innerWidth - 32) - 16;
+  el.strip.style.setProperty('--fs', fitFs(t, w, Math.min(baseFs, 30)).toFixed(1) + 'px');
+}
+
 // на паузе: всё предложение с подсвеченным текущим словом (длинное предложение - окно вокруг слова)
 const CTX_BEFORE = 25;
 const CTX_AFTER = 35;
@@ -542,7 +760,7 @@ function renderContext() {
   const t = cur();
   body.classList.toggle('has-context', !t.h);
   el.context.scrollTop = 0;
-  if (t.h) {
+  if (t.h || sentenceView()) {
     el.context.textContent = '';
     return;
   }
@@ -668,15 +886,15 @@ function readFraction(ch) {
   return total ? n / total : 0;
 }
 
-function startSession() {
-  session = { t: Date.now(), words: 0 };
+function startSession(manual) {
+  session = { t: Date.now(), words: 0, manual: !!manual };
 }
 
-function endSession() {
+function endSession(at) {
   const s = session;
   session = null;
   if (!s || !s.words) return;
-  const now = Date.now();
+  const now = at || Date.now();
   const ms = now - s.t;
   track('read', { words: s.words, seconds: Math.round(ms / 1000), wpm });
   const day = days[dateKey(now)] || { ms: 0, words: 0 };
@@ -685,13 +903,19 @@ function endSession() {
   days[dateKey(now)] = day;
   store('days', days);
   store('read.' + bk.meta.id, readMap);
-  bk.meta.wordsRead = (bk.meta.wordsRead || 0) + s.words;
-  bk.meta.readMs = (bk.meta.readMs || 0) + ms;
+  // реальная скорость книги считается только по режиму слов; чтение предложениями копится отдельно
+  if (s.manual) {
+    bk.meta.sentWords = (bk.meta.sentWords || 0) + s.words;
+    bk.meta.sentMs = (bk.meta.sentMs || 0) + ms;
+  } else {
+    bk.meta.wordsRead = (bk.meta.wordsRead || 0) + s.words;
+    bk.meta.readMs = (bk.meta.readMs || 0) + ms;
+  }
   idbPut('books', bk.meta).catch(() => { /* ок */ });
 }
 
 function play() {
-  if (playing || !bk.meta) return;
+  if (playing || !bk.meta || sentenceView()) return;
   playing = true;
   body.classList.add('playing', 'started');
   if (!load('hintSeen', false)) store('hintSeen', true);
@@ -734,7 +958,10 @@ function pause() {
 const pointers = new Set();
 const TAP_MS = 220;
 const TAP_MOVE = 20;
+// свайп вверх или вниз переключает показ слова/предложение (в режиме "держать палец" чтение успевает стартовать - свайп его останавливает)
+const SWIPE_MIN = 70;
 let edge = null;
+let swipe = null;
 
 function edgeSide(x) {
   const w = el.reader.clientWidth;
@@ -755,6 +982,18 @@ el.reader.addEventListener('pointerdown', (e) => {
   pointers.add(e.pointerId);
   try { el.reader.setPointerCapture(e.pointerId); } catch (err) { /* ок */ }
   const side = edgeSide(e.clientX);
+  swipe = pointers.size === 1 ? { id: e.pointerId, x: e.clientX, y: e.clientY } : null;
+  // предложение внизу на паузе: короткое касание - показ предложениями, удержание - чтение (как у краёв)
+  if (!sentenceView() && !playing && pointers.size === 1 && e.target.closest('#context')) {
+    edge = { id: e.pointerId, side: 0, ctx: true, x: e.clientX, y: e.clientY };
+    if (mode === 'hold') edge.timer = setTimeout(() => { edge = null; play(); }, TAP_MS);
+    return;
+  }
+  if (sentenceView()) {
+    // предложения листаются только касанием у края; середина экрана ничего не делает
+    if (side && pointers.size === 1) edge = { id: e.pointerId, side, x: e.clientX, y: e.clientY };
+    return;
+  }
   if (mode === 'tap') {
     if (pointers.size > 1) return;
     if (playing) pause();
@@ -771,23 +1010,39 @@ el.reader.addEventListener('pointerdown', (e) => {
 });
 
 el.reader.addEventListener('pointermove', (e) => {
+  if (swipe && swipe.id === e.pointerId) {
+    const dx = e.clientX - swipe.x;
+    const dy = e.clientY - swipe.y;
+    if (Math.abs(dy) > SWIPE_MIN && Math.abs(dy) > 1.8 * Math.abs(dx)) {
+      swipe = null;
+      if (edge) clearTimeout(edge.timer);
+      edge = null;
+      toggleView();
+      return;
+    }
+  }
   if (!edge || edge.id !== e.pointerId) return;
   if (Math.hypot(e.clientX - edge.x, e.clientY - edge.y) > TAP_MOVE) {
     clearTimeout(edge.timer);
     edge = null;
-    if (mode === 'hold') play();
+    if (mode === 'hold' && !sentenceView()) play();
   }
 });
 
 function release(e) {
   if (!pointers.delete(e.pointerId)) return;
+  if (swipe && swipe.id === e.pointerId) swipe = null;
   if (edge && edge.id === e.pointerId) {
     clearTimeout(edge.timer);
-    const { side } = edge;
+    const { side, ctx } = edge;
     edge = null;
     if (!playing && e.type === 'pointerup') {
-      if (side < 0) prevSentence();
-      else nextSentence();
+      if (ctx) {
+        toggleView();
+        return;
+      }
+      if (side < 0) goPrev();
+      else goNext();
       flash(side);
     }
   }
@@ -812,11 +1067,12 @@ document.addEventListener('keydown', (e) => {
   if (el.reader.hidden || !bk.meta) return;
   if (e.code === 'Space') {
     e.preventDefault();
-    if (e.repeat) return;
+    if (e.repeat || sentenceView()) return;
     if (mode === 'hold' || !playing) play();
     else pause();
-  } else if (!playing && e.key === 'ArrowLeft') prevSentence();
-  else if (!playing && e.key === 'ArrowRight') nextSentence();
+  } else if (!playing && e.key === 'ArrowLeft') goPrev();
+  else if (!playing && e.key === 'ArrowRight') goNext();
+  else if (sentenceView()) return;
   else if (e.key === '+' || e.key === '=') changeWpm(1);
   else if (e.key === '-') changeWpm(-1);
 });
@@ -828,6 +1084,7 @@ document.addEventListener('keyup', (e) => {
 function leave() {
   pointers.clear();
   pause();
+  endManual();
   savePos();
 }
 
@@ -845,12 +1102,13 @@ function changeWpm(dir) {
 
 $('slower').addEventListener('click', () => changeWpm(-1));
 $('faster').addEventListener('click', () => changeWpm(1));
-$('prev').addEventListener('click', prevSentence);
-$('next').addEventListener('click', nextSentence);
+$('prev').addEventListener('click', goPrev);
+$('next').addEventListener('click', goNext);
+el.strip.addEventListener('click', () => { if (!playing) toggleView(); });
 
 function showHint() {
   el.hint.replaceChildren();
-  T.hint[mode].forEach((line, k) => {
+  (sentenceView() ? T.hintSentence : T.hint[mode]).forEach((line, k) => {
     if (k) el.hint.append(document.createElement('br'));
     el.hint.append(line);
   });
@@ -971,7 +1229,8 @@ function showHelp() {
   for (const [title, lines] of T.helpSections) {
     const ul = node('ul');
     // с включённым Telegram во второй строке раздела "Книги" другой текст про хранение и отправку
-    const shown = TG.enabled && title === T.helpSections[3][0] ? [lines[0], ...T.helpTelegramBooks, ...lines.slice(2)] : lines;
+    let shown = TG.enabled && title === T.helpSections[3][0] ? [lines[0], ...T.helpTelegramBooks, ...lines.slice(2)] : lines;
+    if (sentenceView() && title === T.helpSections[0][0]) shown = T.helpSentence; // красной буквы и скорости в этом показе нет
     for (const line of shown) ul.append(node('li', '', line == null ? T.modes[mode].desc : line));
     box.append(node('h3', '', title), ul);
   }
@@ -1134,6 +1393,7 @@ TG.hooks.change = (event) => {
 
 el.ref.addEventListener('click', () => {
   pause();
+  endManual();
   openPanel(showToc, 'toc');
 });
 $('panel-help').addEventListener('click', showHelp);
@@ -1307,6 +1567,8 @@ async function openBook(id) {
     el.reader.hidden = false;
     body.classList.remove('playing');
     measure();
+    if (sentenceView()) snapToScreen();
+    showHint();
     showPaused();
   } catch (e) {
     toast(T.openFailed);
@@ -1482,6 +1744,7 @@ async function boot() {
   showHint();
   el.wpm.textContent = wpm;
   if (load('hintSeen', false)) body.classList.add('started');
+  body.classList.toggle('sentence-view', sentenceView());
   requestPersist();
   const isIos = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const standalone = navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
